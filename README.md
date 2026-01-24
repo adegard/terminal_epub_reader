@@ -1,4 +1,4 @@
-# terminal_epub_reader
+# terminal epub reader
 simple epub reader in terminal (also termux)
 
 Esegui
