@@ -1,7 +1,40 @@
 import zipfile
 import sys
 import os
+import json
 from bs4 import BeautifulSoup
+
+# ---------------------------------------------------------
+# FILE UNICO DI SALVATAGGIO
+# ---------------------------------------------------------
+SAVE_DIR = os.path.expanduser("~/.epub_reader_saves")
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+SAVE_FILE = os.path.join(SAVE_DIR, "reading_positions.json")
+
+def load_positions():
+    if not os.path.exists(SAVE_FILE):
+        return {}
+    try:
+        with open(SAVE_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_positions(data):
+    with open(SAVE_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def salva_posizione(book, chapter, page):
+    data = load_positions()
+    data[book] = {"chapter": chapter, "page": page}
+    save_positions(data)
+
+def carica_posizione(book):
+    data = load_positions()
+    if book in data:
+        return data[book]["chapter"], data[book]["page"]
+    return 0, 0
 
 # ---------------------------------------------------------
 # CALCOLO AUTOMATICO DELLE RIGHE PER PAGINA
@@ -9,32 +42,12 @@ from bs4 import BeautifulSoup
 def get_page_lines():
     try:
         rows, cols = os.get_terminal_size()
-        return max(5, rows - 5)
+        if rows < 10 or rows > 200:
+            return 15
+        usable = rows - 5
+        return max(5, usable)
     except:
-        return 10  # fallback
-        
-
-SAVE_DIR = os.path.expanduser("~/.epub_reader_saves")
-os.makedirs(SAVE_DIR, exist_ok=True)
-
-# ---------------------------------------------------------
-# SALVATAGGIO POSIZIONE
-# ---------------------------------------------------------
-def salva_posizione(book, chapter, page):
-    path = os.path.join(SAVE_DIR, f"{book}.pos")
-    with open(path, "w") as f:
-        f.write(f"{chapter}|{page}")
-
-def carica_posizione(book):
-    path = os.path.join(SAVE_DIR, f"{book}.pos")
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                chapter, page = f.read().strip().split("|")
-                return int(chapter), int(page)
-        except:
-            return 0, 0
-    return 0, 0
+        return 15
 
 # ---------------------------------------------------------
 # LETTURA EPUB (ORDINE CORRETTO)
@@ -88,7 +101,7 @@ def estrai_testo_capitolo(epub_file, file):
         return soup.get_text(separator="\n")
 
 # ---------------------------------------------------------
-# LETTORE A PAGINE
+# LETTORE A PAGINE (ENTER → CAPITOLO SUCCESSIVO)
 # ---------------------------------------------------------
 def mostra_capitolo(text, book, chapter_index, total_chapters):
     PAGE_LINES = get_page_lines()
@@ -103,24 +116,35 @@ def mostra_capitolo(text, book, chapter_index, total_chapters):
         os.system("clear")
         start = page * PAGE_LINES
         end = start + PAGE_LINES
-        print("\n".join(lines[start:end]))
+
+        for line in lines[start:end]:
+            print(line)
 
         print(f"\n--- Capitolo {chapter_index+1}/{total_chapters} | Pagina {page+1}/{total_pages} ---")
         print("[INVIO] avanti  [p] indietro  [q] menu  [e] esci app")
 
-        cmd = input("> ").strip().lower()
+        cmd = input("> ")
 
+        # ENTER → avanti
         if cmd == "":
             if page < total_pages - 1:
                 page += 1
+                salva_posizione(book, chapter_index, page)
+                continue
 
-        elif cmd == "p":
+            # ultima pagina → passa al capitolo successivo
+            salva_posizione(book, chapter_index, page)
+            return "next"
+
+        cmd = cmd.lower().strip()
+
+        if cmd == "p":
             if page > 0:
                 page -= 1
 
         elif cmd == "q":
             salva_posizione(book, chapter_index, page)
-            return
+            return None
 
         elif cmd == "e":
             salva_posizione(book, chapter_index, page)
@@ -204,6 +228,10 @@ def menu_libreria(cartella):
             print("Cartella non trovata.")
             sys.exit(1)
 
+        if not files:
+            print("Nessun EPUB trovato.")
+            sys.exit(0)
+
         for i, f in enumerate(files):
             print(f"{i+1}. {f}")
 
@@ -256,11 +284,29 @@ if __name__ == "__main__":
                     continue
                 title, file = capitoli[chapter_index]
                 text = estrai_testo_capitolo(epub_path, file)
-                mostra_capitolo(text, book_name, chapter_index, len(capitoli))
+
+                while True:
+                    result = mostra_capitolo(text, book_name, chapter_index, len(capitoli))
+                    if result == "next":
+                        if chapter_index + 1 < len(capitoli):
+                            chapter_index += 1
+                            title, file = capitoli[chapter_index]
+                            text = estrai_testo_capitolo(epub_path, file)
+                            continue
+                    break
 
             if isinstance(scelta, tuple) and scelta[0] == "continua":
                 chapter_index = scelta[1]
                 title, file = capitoli[chapter_index]
                 text = estrai_testo_capitolo(epub_path, file)
-                mostra_capitolo(text, book_name, chapter_index, len(capitoli))
+
+                while True:
+                    result = mostra_capitolo(text, book_name, chapter_index, len(capitoli))
+                    if result == "next":
+                        if chapter_index + 1 < len(capitoli):
+                            chapter_index += 1
+                            title, file = capitoli[chapter_index]
+                            text = estrai_testo_capitolo(epub_path, file)
+                            continue
+                    break
 
