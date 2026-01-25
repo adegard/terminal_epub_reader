@@ -1,5 +1,5 @@
 # terminal epub reader
-simple epub reader in terminal (also termux)
+simple epub reader in terminal (also termux), paragraph by paragraph adapted for small screens.
 
 run with
 ```
@@ -11,10 +11,11 @@ python epub_reader.py
 ✔️ page by page reading
 
 ✔️ Nav by keys
-n → enter
+n → enter (next paragraph)
 p → back
+q → menu
 e → exit
 
-✔️ Automatic position saving
+✔️ Automatic position saving in json file for all books
 
 Note: to be translated (italian now)
