@@ -11,10 +11,10 @@ python epub_reader.py
 ✔️ page by page reading
 
 ✔️ Nav by keys
-n → enter or space (next paragraph)
-p → back
-q → menu
-e → exit
+- n → enter or space (next paragraph)
+- p → back
+- q → menu
+- e → exit
 
 ✔️ Automatic position saving in json file for all books
 
