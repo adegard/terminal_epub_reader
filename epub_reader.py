@@ -129,9 +129,13 @@ def read_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 # ---------------------------------------------------------
-# LETTORE A PARAGRAFI CON WRAPPING DINAMICO
+# LETTORE A PARAGRAFI CON WRAPPING DINAMICO + MARGINI
 # ---------------------------------------------------------
 def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
+
+    LEFT_MARGIN = "  "
+    RIGHT_MARGIN = "  "
+    MARGIN_WIDTH = len(LEFT_MARGIN) + len(RIGHT_MARGIN)
 
     def wrap(text, width):
         words = text.split()
@@ -148,7 +152,7 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
         if current:
             lines.append(current)
 
-        return "\n".join(lines)
+        return "\n".join(LEFT_MARGIN + line + RIGHT_MARGIN for line in lines)
 
     total = len(paragraphs)
     saved_chapter, saved_paragraph = carica_posizione(book)
@@ -158,7 +162,9 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
         os.system("clear")
 
         cols = shutil.get_terminal_size().columns
-        print(wrap(paragraphs[paragraph], cols))
+        usable_width = max(10, cols - MARGIN_WIDTH)
+
+        print(wrap(paragraphs[paragraph], usable_width))
 
         print(f"\n--- Capitolo {chapter_index+1}/{total_chapters} | Blocco {paragraph+1}/{total} ---")
         print("[ENTER / SPACE / Vol-] avanti   [p / Vol+] indietro   [q] menu   [e] esci")
