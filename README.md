@@ -13,6 +13,8 @@ python epub_reader.py
 ✔️ Nav by keys
 n → enter
 p → back
-e → quit
+e → exit
 
 ✔️ Automatic position saving
+
+Note: to be translated (italian now)
