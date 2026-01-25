@@ -5,10 +5,14 @@ import json
 import warnings
 import termios
 import tty
+import shutil
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
+# ---------------------------------------------------------
+# FILE UNICO DI SALVATAGGIO
+# ---------------------------------------------------------
 SAVE_DIR = os.path.expanduser("~/.epub_reader_saves")
 os.makedirs(SAVE_DIR, exist_ok=True)
 SAVE_FILE = os.path.join(SAVE_DIR, "reading_positions.json")
@@ -37,8 +41,12 @@ def carica_posizione(book):
         return data[book].get("chapter", 0), data[book].get("paragraph", 0)
     return 0, 0
 
+# ---------------------------------------------------------
+# LETTURA EPUB (ORDINE CORRETTO)
+# ---------------------------------------------------------
 def estrai_capitoli(epub_file):
     with zipfile.ZipFile(epub_file, 'r') as z:
+
         opf_path = None
         for f in z.namelist():
             if f.endswith(".opf"):
@@ -66,6 +74,9 @@ def estrai_capitoli(epub_file):
 
         return capitoli
 
+# ---------------------------------------------------------
+# ESTRAZIONE TITOLI + PARAGRAFI
+# ---------------------------------------------------------
 def estrai_testo_capitolo(epub_file, file):
     with zipfile.ZipFile(epub_file, 'r') as z:
         data = z.read(file).decode("utf-8", errors="ignore")
@@ -108,7 +119,7 @@ def read_key():
         tty.setraw(fd)
         ch = sys.stdin.read(1)
 
-        if ch == "\x1b":  # sequenza ESC
+        if ch == "\x1b":  # ESC sequence
             ch2 = sys.stdin.read(1)
             if ch2 == "[":
                 ch3 = sys.stdin.read(1)
@@ -118,35 +129,45 @@ def read_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 # ---------------------------------------------------------
-# LETTORE A PARAGRAFI
+# LETTORE A PARAGRAFI CON WRAPPING DINAMICO
 # ---------------------------------------------------------
 def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
+
+    def wrap(text, width):
+        words = text.split()
+        lines = []
+        current = ""
+
+        for w in words:
+            if len(current) + len(w) + 1 > width:
+                lines.append(current)
+                current = w
+            else:
+                current = w if current == "" else current + " " + w
+
+        if current:
+            lines.append(current)
+
+        return "\n".join(lines)
+
     total = len(paragraphs)
     saved_chapter, saved_paragraph = carica_posizione(book)
     paragraph = saved_paragraph if saved_chapter == chapter_index else 0
 
     while True:
         os.system("clear")
-        print(paragraphs[paragraph])
+
+        cols = shutil.get_terminal_size().columns
+        print(wrap(paragraphs[paragraph], cols))
+
         print(f"\n--- Capitolo {chapter_index+1}/{total_chapters} | Blocco {paragraph+1}/{total} ---")
         print("[ENTER / SPACE / Vol-] avanti   [p / Vol+] indietro   [q] menu   [e] esci")
 
         key = read_key()
 
-        # ENTER
-        if key == "\r" or key == "\n":
+        if key in ["\r", "\n", " ", "ESC[B"]:
             key = "next"
-
-        # SPACE
-        if key == " ":
-            key = "next"
-
-        # FRECCIA GIÙ (Volume GIÙ)
-        if key == "ESC[B":
-            key = "next"
-
-        # FRECCIA SU (Volume SU)
-        if key == "ESC[A":
+        if key in ["ESC[A", "p"]:
             key = "prev"
 
         if key == "next":
@@ -157,7 +178,7 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
             salva_posizione(book, chapter_index, paragraph)
             return "next"
 
-        if key == "prev" or key == "p":
+        if key == "prev":
             if paragraph > 0:
                 paragraph -= 1
             salva_posizione(book, chapter_index, paragraph)
