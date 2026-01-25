@@ -1,20 +1,18 @@
 # terminal epub reader
 simple epub reader in terminal (also termux)
 
-Esegui
+run with
 ```
 python epub_reader.py
 ```
-# Funzionalità incluse
-✔️ Libreria ebook
+# Features
+✔️ ebooks library in folders
 
-✔️ Lettura a pagine
-Mostra 25 righe alla volta (modificabile).
+✔️ page by page reading
 
-✔️ Navigazione con tasti
-n → avanti
-p → indietro
-q → esci e salva
+✔️ Nav by keys
+n → enter
+p → back
+e → quit
 
-✔️ Salvataggio automatico
-La posizione viene salvata in txt file
+✔️ Automatic position saving
