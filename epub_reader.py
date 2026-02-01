@@ -6,12 +6,13 @@ import warnings
 import termios
 import tty
 import shutil
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from bs4 import BeautifulSoup
 
-warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+# warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 # ---------------------------------------------------------
-# FILE UNICO DI SALVATAGGIO
+# SAVE FILE
 # ---------------------------------------------------------
 SAVE_DIR = os.path.expanduser("~/.epub_reader_saves")
 os.makedirs(SAVE_DIR, exist_ok=True)
@@ -30,21 +31,21 @@ def save_positions(data):
     with open(SAVE_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-def salva_posizione(book, chapter, paragraph):
+def save_position(book, chapter, paragraph):
     data = load_positions()
     data[book] = {"chapter": chapter, "paragraph": paragraph}
     save_positions(data)
 
-def carica_posizione(book):
+def load_position(book):
     data = load_positions()
     if book in data:
         return data[book].get("chapter", 0), data[book].get("paragraph", 0)
     return 0, 0
 
 # ---------------------------------------------------------
-# LETTURA EPUB (ORDINE CORRETTO)
+# EPUB READING (CORRECT ORDER)
 # ---------------------------------------------------------
-def estrai_capitoli(epub_file):
+def extract_chapters(epub_file):
     with zipfile.ZipFile(epub_file, 'r') as z:
 
         opf_path = None
@@ -59,7 +60,7 @@ def estrai_capitoli(epub_file):
         manifest = {item.get("id"): item.get("href") for item in soup.find_all("item")}
         spine_ids = [item.get("idref") for item in soup.find_all("itemref")]
 
-        capitoli = []
+        chapters = []
         base_path = os.path.dirname(opf_path)
 
         for idref in spine_ids:
@@ -70,14 +71,14 @@ def estrai_capitoli(epub_file):
             html = BeautifulSoup(data, "html.parser")
             title = html.find(["h1", "h2", "h3", "title"])
             title = title.get_text().strip() if title else file_path
-            capitoli.append((title, file_path))
+            chapters.append((title, file_path))
 
-        return capitoli
+        return chapters
 
 # ---------------------------------------------------------
-# ESTRAZIONE TITOLI + PARAGRAFI
+# EXTRACT TITLES + PARAGRAPHS
 # ---------------------------------------------------------
-def estrai_testo_capitolo(epub_file, file):
+def extract_chapter_text(epub_file, file):
     with zipfile.ZipFile(epub_file, 'r') as z:
         data = z.read(file).decode("utf-8", errors="ignore")
         soup = BeautifulSoup(data, "html.parser")
@@ -110,7 +111,7 @@ def estrai_testo_capitolo(epub_file, file):
         return clean
 
 # ---------------------------------------------------------
-# LETTURA TASTI REALI (ENTER, SPACE, FRECCE)
+# REAL KEY READING (ENTER, SPACE, ARROWS)
 # ---------------------------------------------------------
 def read_key():
     fd = sys.stdin.fileno()
@@ -129,9 +130,9 @@ def read_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 # ---------------------------------------------------------
-# LETTORE A PARAGRAFI CON WRAPPING DINAMICO + MARGINI
+# PARAGRAPH READER WITH WRAPPING + MARGINS
 # ---------------------------------------------------------
-def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
+def show_chapter(paragraphs, book, chapter_index, total_chapters):
 
     LEFT_MARGIN = "  "
     RIGHT_MARGIN = "  "
@@ -155,7 +156,7 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
         return "\n".join(LEFT_MARGIN + line + RIGHT_MARGIN for line in lines)
 
     total = len(paragraphs)
-    saved_chapter, saved_paragraph = carica_posizione(book)
+    saved_chapter, saved_paragraph = load_position(book)
     paragraph = saved_paragraph if saved_chapter == chapter_index else 0
 
     while True:
@@ -166,8 +167,8 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
 
         print(wrap(paragraphs[paragraph], usable_width))
 
-        print(f"\n--- Capitolo {chapter_index+1}/{total_chapters} | Blocco {paragraph+1}/{total} ---")
-        print("[ENTER / SPACE / Vol-] avanti   [p / Vol+] indietro   [q] menu   [e] esci")
+        print(f"\n--- Chapter {chapter_index+1}/{total_chapters} | Block {paragraph+1}/{total} ---")
+        print("[ENTER / SPACE / Vol-] next   [p / Vol+] previous   [q] menu   [e] exit")
 
         key = read_key()
 
@@ -179,36 +180,36 @@ def mostra_capitolo(paragraphs, book, chapter_index, total_chapters):
         if key == "next":
             if paragraph < total - 1:
                 paragraph += 1
-                salva_posizione(book, chapter_index, paragraph)
+                save_position(book, chapter_index, paragraph)
                 continue
-            salva_posizione(book, chapter_index, paragraph)
+            save_position(book, chapter_index, paragraph)
             return "next"
 
         if key == "prev":
             if paragraph > 0:
                 paragraph -= 1
-            salva_posizione(book, chapter_index, paragraph)
+            save_position(book, chapter_index, paragraph)
             continue
 
         if key == "q":
-            salva_posizione(book, chapter_index, paragraph)
+            save_position(book, chapter_index, paragraph)
             return None
 
         if key == "e":
-            salva_posizione(book, chapter_index, paragraph)
-            print("Posizione salvata. Uscita.")
+            save_position(book, chapter_index, paragraph)
+            print("Position saved. Exiting.")
             sys.exit(0)
 
 # ---------------------------------------------------------
-# MENU
+# MENUS
 # ---------------------------------------------------------
-def menu_sommario(capitoli):
+def menu_summary(chapters):
     while True:
         os.system("clear")
-        print("=== SOMMARIO ===\n")
-        for i, (title, _) in enumerate(capitoli):
+        print("=== TABLE OF CONTENTS ===\n")
+        for i, (title, _) in enumerate(chapters):
             print(f"{i+1}. {title}")
-        print("\nq = menu   e = esci")
+        print("\nq = back   e = exit")
 
         s = input("> ").strip().lower()
         if s == "e":
@@ -217,47 +218,53 @@ def menu_sommario(capitoli):
             return None
         if s.isdigit():
             n = int(s) - 1
-            if 0 <= n < len(capitoli):
+            if 0 <= n < len(chapters):
                 return n
 
-def menu_lettura(book, capitoli):
-    saved_chapter, saved_paragraph = carica_posizione(book)
+def menu_reading(book, chapters):
+    saved_chapter, saved_paragraph = load_position(book)
 
     while True:
         os.system("clear")
-        print("=== MENU LETTURA ===\n")
-        if saved_chapter < len(capitoli):
-            print("1. Continua")
+        print("=== READING MENU ===\n")
+
+        if saved_chapter < len(chapters):
+            print("1. Continue")
         else:
-            print("1. Continua (non disponibile)")
-        print("2. Sommario")
-        print("3. Cambia libro")
-        print("4. Esci")
+            print("1. Continue (not available)")
+
+        print("2. Table of Contents")
+        print("3. Change Book")
+        print("4. Exit")
 
         s = input("> ").strip().lower()
+
+        # NEW SHORTCUT: pressing ENTER = Continue
+        if s == "" and saved_chapter < len(chapters):
+            return ("continue", saved_chapter)
 
         if s == "4" or s == "e":
             sys.exit(0)
         if s == "3":
-            return "cambia"
+            return "change"
         if s == "2":
-            return "sommario"
-        if s == "1" and saved_chapter < len(capitoli):
-            return ("continua", saved_chapter)
+            return "summary"
+        if s == "1" and saved_chapter < len(chapters):
+            return ("continue", saved_chapter)
 
-def menu_libreria(cartella):
-    cartella = os.path.expanduser(cartella)
+def menu_library(folder):
+    folder = os.path.expanduser(folder)
 
     while True:
         os.system("clear")
-        print("=== LIBRERIA ===\n")
+        print("=== LIBRARY ===\n")
 
-        files = [f for f in os.listdir(cartella) if f.lower().endswith(".epub")]
+        files = [f for f in os.listdir(folder) if f.lower().endswith(".epub")]
 
         for i, f in enumerate(files):
             print(f"{i+1}. {f}")
 
-        print("\ne = esci")
+        print("\ne = exit")
 
         s = input("> ").strip().lower()
         if s == "e":
@@ -265,12 +272,12 @@ def menu_libreria(cartella):
         if s.isdigit():
             n = int(s) - 1
             if 0 <= n < len(files):
-                return os.path.join(cartella, files[n]), files[n]
+                return os.path.join(folder, files[n]), files[n]
 
-def scegli_cartella():
+def choose_folder():
     default = os.path.dirname(os.path.abspath(__file__))
     os.system("clear")
-    print("Cartella libreria (INVIO = default):")
+    print("Library folder (ENTER = default):")
     print(default)
     s = input("> ").strip()
     return default if s == "" else os.path.expanduser(s)
@@ -279,46 +286,45 @@ def scegli_cartella():
 # MAIN
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    cartella = scegli_cartella()
+    folder = choose_folder()
 
     while True:
-        epub_path, book_name = menu_libreria(cartella)
-        capitoli = estrai_capitoli(epub_path)
+        epub_path, book_name = menu_library(folder)
+        chapters = extract_chapters(epub_path)
 
         while True:
-            scelta = menu_lettura(book_name, capitoli)
+            choice = menu_reading(book_name, chapters)
 
-            if scelta == "cambia":
+            if choice == "change":
                 break
 
-            if scelta == "sommario":
-                chapter_index = menu_sommario(capitoli)
+            if choice == "summary":
+                chapter_index = menu_summary(chapters)
                 if chapter_index is None:
                     continue
 
-                title, file = capitoli[chapter_index]
-                paragraphs = estrai_testo_capitolo(epub_path, file)
+                title, file = chapters[chapter_index]
+                paragraphs = extract_chapter_text(epub_path, file)
 
                 while True:
-                    result = mostra_capitolo(paragraphs, book_name, chapter_index, len(capitoli))
-                    if result == "next" and chapter_index + 1 < len(capitoli):
+                    result = show_chapter(paragraphs, book_name, chapter_index, len(chapters))
+                    if result == "next" and chapter_index + 1 < len(chapters):
                         chapter_index += 1
-                        title, file = capitoli[chapter_index]
-                        paragraphs = estrai_testo_capitolo(epub_path, file)
+                        title, file = chapters[chapter_index]
+                        paragraphs = extract_chapter_text(epub_path, file)
                         continue
                     break
 
-            if isinstance(scelta, tuple):
-                chapter_index = scelta[1]
-                title, file = capitoli[chapter_index]
-                paragraphs = estrai_testo_capitolo(epub_path, file)
+            if isinstance(choice, tuple):
+                chapter_index = choice[1]
+                title, file = chapters[chapter_index]
+                paragraphs = extract_chapter_text(epub_path, file)
 
                 while True:
-                    result = mostra_capitolo(paragraphs, book_name, chapter_index, len(capitoli))
-                    if result == "next" and chapter_index + 1 < len(capitoli):
+                    result = show_chapter(paragraphs, book_name, chapter_index, len(chapters))
+                    if result == "next" and chapter_index + 1 < len(chapters):
                         chapter_index += 1
-                        title, file = capitoli[chapter_index]
-                        paragraphs = estrai_testo_capitolo(epub_path, file)
+                        title, file = chapters[chapter_index]
+                        paragraphs = extract_chapter_text(epub_path, file)
                         continue
                     break
-
