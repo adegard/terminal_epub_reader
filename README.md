@@ -17,7 +17,3 @@ python epub_reader.py
 - e → exit
 
 ✔️ Automatic position saving in json file for all books
-
-Note: to be translated (italian now)
-
-volume keys on phone+termux not working yo switch paragraoh, use space or enter instead
