@@ -17,3 +17,7 @@ python epub_reader.py
 - e → exit
 
 ✔️ Automatic position saving in json file for all books
+
+---
+
+For an overview of all my other projects, see https://adegard.github.io/blog/
